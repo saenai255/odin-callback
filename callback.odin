@@ -6,8 +6,8 @@ Void :: distinct rawptr
 EMPTY : Void = nil
 
 
-Callback :: struct($T, $R: typeid) {
-    callback: proc(T) -> R,
+Callback :: struct($T, $P, $R: typeid) {
+    callback: proc(T, P) -> R,
     state: T,
     free: proc(T),
 }
@@ -15,8 +15,8 @@ Callback :: struct($T, $R: typeid) {
 // Creates a callback that does not require cleanup.
 make_without_cleanup :: proc(
     state: $T,
-    callback: proc(T) -> $R,
-) -> Callback(T, R) {
+    callback: proc(T, $P) -> $R,
+) -> Callback(T, P, R) {
     return {
         callback = callback,
         state = state,
@@ -27,9 +27,9 @@ make_without_cleanup :: proc(
 // Creates a callback that requires cleanup.
 make_with_cleanup :: proc(
     state: $T,
-    callback: proc(T) -> $R,
+    callback: proc(T, $P) -> $R,
     free: proc(T),
-) -> Callback(T, R) {
+) -> Callback(T, P, R) {
     return {
         callback = callback,
         state = state,
@@ -41,12 +41,19 @@ make_with_cleanup :: proc(
 make :: proc { make_without_cleanup, make_with_cleanup }
 
 // Executes a callback and returns its result.
-exec :: proc(c: Callback($T, $R)) -> R {
-    return c.callback(c.state)
+exec_with_param :: proc(c: Callback($T, $P, $R), param: P) -> R {
+    return c.callback(c.state, param)
 }
 
+// Executes a callback and returns its result. The callback must not take any parameters.
+exec_no_param :: proc(c: Callback($T, Void, $R)) -> R {
+    return c.callback(c.state, EMPTY)
+}
+
+exec :: proc { exec_no_param, exec_with_param }
+
 // Frees resources associated with a callback.
-free :: proc(c: Callback($T, $R)) {
+free :: proc(c: Callback($T, $P, $R)) {
     if c.free != nil {
         c.free(c.state)
     }
