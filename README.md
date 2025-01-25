@@ -27,25 +27,25 @@ import "path/to/callback"
 
 ### Types
 
-- **`Callback(T, R)`**: A structure that holds a callback, its state, and an optional cleanup function.
+- **`Callback(TParam, TReturn)`**: A structure that holds a callback, its state, and an optional cleanup function.
 
 ---
 
 ### Functions
 
-- **`make_without_cleanup(state: T, callback: proc(T) -> R)`**  
+- **`make_without_cleanup(capture: rawptr, callback: proc(rawptr, P) -> R)`**  
   Creates a callback without a cleanup function.
 
-- **`make_with_cleanup(state: T, callback: proc(T) -> R, free: proc(T))`**  
+- **`make_with_cleanup(capture: rawptr, callback: proc(rawptr, P) -> R, free: proc(rawptr))`**  
   Creates a callback with a cleanup function for resource management.
 
 - **`make`**  
   Procedure union for creating a callback with or without cleanup.
 
-- **`exec(c: Callback(T, R)) -> R`**  
+- **`exec(c: Callback(P, R), param: P) -> R`**  
   Executes the callback and returns the result.
 
-- **`free(c: Callback(T, R))`**  
+- **`free(c: Callback(P, R))`**  
   Invokes the cleanup function if it is set.
 
 ---
@@ -57,28 +57,26 @@ package main
 
 import "callback"
 
+make_adder :: proc(base: int) -> cb.Callback(int, int) {
+    return cb.make(
+        capture = new_clone(base),
+        callback = proc(capture: ^int, param: int) -> int {
+            capture^ += param
+            return capture^
+        },
+        free = proc(capture: rawptr) {
+            free(cast(^int)capture)
+        },
+    )
+}
+
 main :: proc() {
-    // Create a callback without cleanup
-    cb_no_cleanup := callback.make(42, proc(state: int) -> int {
-        return state * 2;
-    });
-    result := callback.exec(cb_no_cleanup); 
-    // result == 84
+    adder := make_adder(10)
+    defer cb.free(adder) // Cleanup
 
-    // Create a callback with cleanup
-    state := new(int)
-    state^ = 2;
-    cb_with_cleanup := callback.make(state, proc(state: ^int) -> int {
-        return state^ + 10;
-    }, proc(state: ^int) {
-        // Free resources if necessary
-        free(state);
-    });
-
-    result := callback.exec(cb_with_cleanup);
-    // result == 12
-
-    callback.free(cb_with_cleanup); // `state` is freed
+    cb.exec(adder, 5) // 15
+    cb.exec(adder, 6) // 21
+    cb.exec(adder, 7) // 28
 }
 ```
 

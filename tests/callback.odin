@@ -5,66 +5,73 @@ import cb ".."
 
 @(test)
 callback_gets_called :: proc(t: ^testing.T) {
-    state := 42
+    capture := new_clone(42)
     fn := cb.make(
-        state = &state,
-        callback = proc(state: ^int, param: cb.Void) -> cb.Void {
-            state^ += 1
-            return cb.EMPTY
+        capture = capture,
+        callback = proc(capture: ^int, param: cb.Void) -> cb.Void {
+            capture^ += 1
+            return .Nil
+        },
+        free = proc(capture: rawptr) {
+            free(cast(^int)capture)
         },
     )
+    defer cb.free(fn)
 
     cb.exec(fn)
-    testing.expect_value(t, state, 43)
+    testing.expect_value(t, capture^, 43)
     cb.exec(fn)
-    testing.expect_value(t, state, 44)
+    testing.expect_value(t, capture^, 44)
 }
 
 @(test)
 callback_free_gets_called :: proc(t: ^testing.T) {
-    state := new(int)
-    state^ = 42
+    capture := new_clone(42)
     fn := cb.make(
-        state = state,
+        capture = capture,
         callback = proc(state: ^int, param: cb.Void) -> cb.Void {
             state^ += 1
-            return cb.EMPTY
+            return .Nil
         },
-        free = proc(state: ^int) {
-            free(state)
+        free = proc(capture: rawptr) {
+            free(cast(^int)capture)
         },
     )
-
     defer cb.free(fn)
+
     cb.exec(fn)
-    testing.expect_value(t, state^, 43)
+    testing.expect_value(t, capture^, 43)
     cb.exec(fn)
-    testing.expect_value(t, state^, 44)
+    testing.expect_value(t, capture^, 44)
 }
 
 @(test)
 callback_computes_value :: proc(t: ^testing.T) {
-    state := 42
+    capture := new_clone(42)
     fn := cb.make(
-        state = state,
-        callback = proc(state: int, param: cb.Void) -> int {
-            return state * 2
+        capture = capture,
+        callback = proc(capture: ^int, param: cb.Void) -> int {
+            return capture^ * 2
+        },
+        free = proc(capture: rawptr) {
+            free(cast(^int)capture)
         },
     )
+    defer cb.free(fn)
 
     result := cb.exec(fn)
     testing.expect_value(t, result, 84)
 }
 
-make_adder :: proc(base: int) -> cb.Callback(^int, int, int) {
+make_adder :: proc(base: int) -> cb.Callback(int, int) {
     return cb.make(
-        state = new_clone(base),
+        capture = new_clone(base),
         callback = proc(state: ^int, param: int) -> int {
             state^ += param
             return state^
         },
-        free = proc(state: ^int) {
-            free(state)
+        free = proc(state: rawptr) {
+            free(cast(^int)state)
         },
     )
 }

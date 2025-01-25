@@ -1,38 +1,37 @@
 package callback
 
-// Void is a type that represents the absence of a value.
-Void :: distinct rawptr
-// EMPTY is a value that represents the absence of a value.
-EMPTY : Void = nil
+Void :: enum {
+    Nil,
+}
 
 
-Callback :: struct($T, $P, $R: typeid) {
-    callback: proc(T, P) -> R,
-    state: T,
-    free: proc(T),
+Callback :: struct($P, $R: typeid) {
+    callback: proc(rawptr, P) -> R,
+    capture: rawptr,
+    free: proc(rawptr),
 }
 
 // Creates a callback that does not require cleanup.
 make_without_cleanup :: proc(
-    state: $T,
-    callback: proc(T, $P) -> $R,
-) -> Callback(T, P, R) {
+    capture: $T,
+    callback: proc(rawptr, $P) -> $R,
+) -> Callback(P, R) {
     return {
         callback = callback,
-        state = state,
+        capture = capture,
         free = nil,
     }
 }
 
 // Creates a callback that requires cleanup.
 make_with_cleanup :: proc(
-    state: $T,
-    callback: proc(T, $P) -> $R,
-    free: proc(T),
-) -> Callback(T, P, R) {
+    capture: $T,
+    callback: proc(rawptr, $P) -> $R,
+    free: proc(rawptr),
+) -> Callback(P, R) {
     return {
         callback = callback,
-        state = state,
+        capture = capture,
         free = free,
     }
 }
@@ -41,20 +40,20 @@ make_with_cleanup :: proc(
 make :: proc { make_without_cleanup, make_with_cleanup }
 
 // Executes a callback and returns its result.
-exec_with_param :: proc(c: Callback($T, $P, $R), param: P) -> R {
-    return c.callback(c.state, param)
+exec_with_param :: proc(c: Callback($P, $R), param: P) -> R {
+    return c.callback(c.capture, param)
 }
 
 // Executes a callback and returns its result. The callback must not take any parameters.
-exec_no_param :: proc(c: Callback($T, Void, $R)) -> R {
-    return c.callback(c.state, EMPTY)
+exec_no_param :: proc(c: Callback(Void, $R)) -> R {
+    return c.callback(c.capture, .Nil)
 }
 
 exec :: proc { exec_no_param, exec_with_param }
 
 // Frees resources associated with a callback.
-free :: proc(c: Callback($T, $P, $R)) {
+free :: proc(c: Callback($P, $R)) {
     if c.free != nil {
-        c.free(c.state)
+        c.free(c.capture)
     }
 }
